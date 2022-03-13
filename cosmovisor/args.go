@@ -26,6 +26,9 @@ const (
 	EnvRestartUpgrade       = "DAEMON_RESTART_AFTER_UPGRADE"
 	EnvSkipBackup           = "UNSAFE_SKIP_BACKUP"
 	EnvDataBackupPath       = "DAEMON_DATA_BACKUP_DIR"
+	EnvScriptBackup         = "SCRIPT_BACKUP_ENABLE"
+	EnvScriptBackupShell    = "SCRIPT_BACKUP_SHELL"
+	EnvScriptBackupPath     = "SCRIPT_BACKUP_PATH"
 	EnvInterval             = "DAEMON_POLL_INTERVAL"
 	EnvPreupgradeMaxRetries = "DAEMON_PREUPGRADE_MAX_RETRIES"
 )
@@ -49,6 +52,9 @@ type Config struct {
 	PollInterval          time.Duration
 	UnsafeSkipBackup      bool
 	DataBackupPath        string
+	ScriptBackup          bool
+	ScriptBackupShell     string
+	ScriptBackupPath      string
 	PreupgradeMaxRetries  int
 
 	// currently running upgrade
@@ -131,9 +137,11 @@ func (cfg *Config) CurrentBin() (string, error) {
 func GetConfigFromEnv() (*Config, error) {
 	var errs []error
 	cfg := &Config{
-		Home:           os.Getenv(EnvHome),
-		Name:           os.Getenv(EnvName),
-		DataBackupPath: os.Getenv(EnvDataBackupPath),
+		Home:              os.Getenv(EnvHome),
+		Name:              os.Getenv(EnvName),
+		DataBackupPath:    os.Getenv(EnvDataBackupPath),
+		ScriptBackupPath:  os.Getenv(EnvScriptBackupPath),
+		ScriptBackupShell: os.Getenv(EnvScriptBackupShell),
 	}
 
 	if cfg.DataBackupPath == "" {
@@ -148,6 +156,9 @@ func GetConfigFromEnv() (*Config, error) {
 		errs = append(errs, err)
 	}
 	if cfg.UnsafeSkipBackup, err = booleanOption(EnvSkipBackup, false); err != nil {
+		errs = append(errs, err)
+	}
+	if cfg.ScriptBackup, err = booleanOption(EnvScriptBackup, false); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -227,9 +238,9 @@ func (cfg *Config) validate() []error {
 	// if UnsafeSkipBackup is false, check if the DataBackupPath valid
 	switch {
 	case cfg.DataBackupPath == "":
-		errs = append(errs, errors.New(EnvDataBackupPath + " must not be empty"))
+		errs = append(errs, errors.New(EnvDataBackupPath+" must not be empty"))
 	case !filepath.IsAbs(cfg.DataBackupPath):
-		errs = append(errs, errors.New(cfg.DataBackupPath + " must be an absolute path"))
+		errs = append(errs, errors.New(cfg.DataBackupPath+" must be an absolute path"))
 	default:
 		switch info, err := os.Stat(cfg.DataBackupPath); {
 		case err != nil:
