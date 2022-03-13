@@ -26,7 +26,6 @@ const (
 	EnvRestartUpgrade       = "DAEMON_RESTART_AFTER_UPGRADE"
 	EnvSkipBackup           = "UNSAFE_SKIP_BACKUP"
 	EnvDataBackupPath       = "DAEMON_DATA_BACKUP_DIR"
-	EnvScriptBackup         = "SCRIPT_BACKUP_ENABLE"
 	EnvScriptBackupShell    = "SCRIPT_BACKUP_SHELL"
 	EnvScriptBackupPath     = "SCRIPT_BACKUP_PATH"
 	EnvInterval             = "DAEMON_POLL_INTERVAL"
@@ -52,7 +51,6 @@ type Config struct {
 	PollInterval          time.Duration
 	UnsafeSkipBackup      bool
 	DataBackupPath        string
-	ScriptBackup          bool
 	ScriptBackupShell     string
 	ScriptBackupPath      string
 	PreupgradeMaxRetries  int
@@ -156,9 +154,6 @@ func GetConfigFromEnv() (*Config, error) {
 		errs = append(errs, err)
 	}
 	if cfg.UnsafeSkipBackup, err = booleanOption(EnvSkipBackup, false); err != nil {
-		errs = append(errs, err)
-	}
-	if cfg.ScriptBackup, err = booleanOption(EnvScriptBackup, false); err != nil {
 		errs = append(errs, err)
 	}
 
