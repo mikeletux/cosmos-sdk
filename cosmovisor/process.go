@@ -62,7 +62,7 @@ func (l Launcher) Run(args []string, stdout, stderr io.Writer) (bool, error) {
 	}
 
 	if !IsSkipUpgradeHeight(args, l.fw.currentInfo) {
-		if err := doBackup(l.cfg); err != nil {
+		if err := DoBackup(l.cfg); err != nil {
 			return false, err
 		}
 
@@ -108,15 +108,12 @@ func (l Launcher) WaitForUpgradeOrExit(cmd *exec.Cmd) (bool, error) {
 	return true, nil
 }
 
-func doBackup(cfg *Config) error {
+func DoBackup(cfg *Config) error {
 	// take backup if `UNSAFE_SKIP_BACKUP` is not set.
 	if !cfg.UnsafeSkipBackup {
-		if cfg.ScriptBackup { // Script backup has preference over directory backup
+		if cfg.ScriptBackupPath != "" { // Script backup has preference over directory backup
 			if cfg.ScriptBackupShell == "" {
 				return fmt.Errorf("a shell needs to be define to run the backup script. Example: /bin/bash, /bin/zsh, etc")
-			}
-			if cfg.ScriptBackupPath == "" {
-				return fmt.Errorf("script backup has been set but no path has been provided")
 			}
 
 			cmd := exec.Command(cfg.ScriptBackupShell, cfg.ScriptBackupPath) // So far it only accepts the script path, no args. To be improved
