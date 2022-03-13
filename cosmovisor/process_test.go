@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package cosmovisor_test
@@ -203,4 +204,8 @@ func TestUpgradeSkipHeights(t *testing.T) {
 		h := cosmovisor.UpgradeSkipHeights(tc.args)
 		require.Equal(h, tc.expectRes)
 	}
+}
+
+func TestBackupScript(t *testing.T) {
+	// TBD
 }
