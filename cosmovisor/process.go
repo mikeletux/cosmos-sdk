@@ -3,6 +3,7 @@ package cosmovisor
 import (
 	"encoding/json"
 	"fmt"
+	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 	"io"
 	"os"
 	"os/exec"
@@ -14,8 +15,6 @@ import (
 	"time"
 
 	"github.com/otiai10/copy"
-
-	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
 )
 
 type Launcher struct {
@@ -112,39 +111,62 @@ func (l Launcher) WaitForUpgradeOrExit(cmd *exec.Cmd) (bool, error) {
 func doBackup(cfg *Config) error {
 	// take backup if `UNSAFE_SKIP_BACKUP` is not set.
 	if !cfg.UnsafeSkipBackup {
-		// check if upgrade-info.json is not empty.
-		var uInfo upgradetypes.Plan
-		upgradeInfoFile, err := os.ReadFile(filepath.Join(cfg.Home, "data", "upgrade-info.json"))
-		if err != nil {
-			return fmt.Errorf("error while reading upgrade-info.json: %w", err)
+		if cfg.ScriptBackup { // Script backup has preference over directory backup
+			if cfg.ScriptBackupShell == "" {
+				return fmt.Errorf("a shell needs to be define to run the backup script. Example: /bin/bash, /bin/zsh, etc")
+			}
+			if cfg.ScriptBackupPath == "" {
+				return fmt.Errorf("script backup has been set but no path has been provided")
+			}
+
+			cmd := exec.Command(cfg.ScriptBackupShell, cfg.ScriptBackupPath) // So far it only accepts the script path, no args. To be improved
+
+			// Need to write stdout and stderr somewhere - TBD
+			st := time.Now()
+			Logger.Info().Time("backup script start time", st).Msg(fmt.Sprintf("starting to take backup using script %s", cfg.ScriptBackupPath))
+			err := cmd.Run()
+			if err != nil {
+				return fmt.Errorf("the backup script returned an error code different from 0 - %s", err)
+			}
+
+			et := time.Now()
+			Logger.Info().Time("backup script completion time", et).TimeDiff("time taken to complete script backup", et, st).Msg("backup completed")
+		} else {
+			// check if upgrade-info.json is not empty.
+			var uInfo upgradetypes.Plan
+			upgradeInfoFile, err := os.ReadFile(filepath.Join(cfg.Home, "data", "upgrade-info.json"))
+			if err != nil {
+				return fmt.Errorf("error while reading upgrade-info.json: %w", err)
+			}
+
+			err = json.Unmarshal(upgradeInfoFile, &uInfo)
+			if err != nil {
+				return err
+			}
+
+			if uInfo.Name == "" {
+				return fmt.Errorf("upgrade-info.json is empty")
+			}
+
+			// a destination directory, Format YYYY-MM-DD
+			st := time.Now()
+			stStr := fmt.Sprintf("%d-%d-%d", st.Year(), st.Month(), st.Day())
+			dst := filepath.Join(cfg.DataBackupPath, fmt.Sprintf("data"+"-backup-%s", stStr))
+
+			Logger.Info().Time("backup start time", st).Msg("starting to take backup of data directory")
+
+			// copy the $DAEMON_HOME/data to a backup dir
+			err = copy.Copy(filepath.Join(cfg.Home, "data"), dst)
+
+			if err != nil {
+				return fmt.Errorf("error while taking data backup: %w", err)
+			}
+
+			// backup is done, lets check endtime to calculate total time taken for backup process
+			et := time.Now()
+			Logger.Info().Str("backup saved at", dst).Time("backup completion time", et).TimeDiff("time taken to complete backup", et, st).Msg("backup completed")
 		}
 
-		err = json.Unmarshal(upgradeInfoFile, &uInfo)
-		if err != nil {
-			return err
-		}
-
-		if uInfo.Name == "" {
-			return fmt.Errorf("upgrade-info.json is empty")
-		}
-
-		// a destination directory, Format YYYY-MM-DD
-		st := time.Now()
-		stStr := fmt.Sprintf("%d-%d-%d", st.Year(), st.Month(), st.Day())
-		dst := filepath.Join(cfg.DataBackupPath, fmt.Sprintf("data"+"-backup-%s", stStr))
-
-		Logger.Info().Time("backup start time", st).Msg("starting to take backup of data directory")
-
-		// copy the $DAEMON_HOME/data to a backup dir
-		err = copy.Copy(filepath.Join(cfg.Home, "data"), dst)
-
-		if err != nil {
-			return fmt.Errorf("error while taking data backup: %w", err)
-		}
-
-		// backup is done, lets check endtime to calculate total time taken for backup process
-		et := time.Now()
-		Logger.Info().Str("backup saved at", dst).Time("backup completion time", et).TimeDiff("time taken to complete backup", et, st).Msg("backup completed")
 	}
 
 	return nil
