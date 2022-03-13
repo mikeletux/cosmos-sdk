@@ -5,6 +5,8 @@ package cosmovisor_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -207,5 +209,58 @@ func TestUpgradeSkipHeights(t *testing.T) {
 }
 
 func TestBackupScript(t *testing.T) {
-	// TBD
+	// Create test scripts
+	workingTestScript := `#!/bin/sh
+exit 0`
+	failingTestScript := `#!/bin/sh
+exit 1`
+
+	testCases := []struct {
+		ScriptPath    string // Path where the script is in the computer
+		ScriptContent string // Content of the script in case we want to write it in disk
+		WriteScript   bool   // True if we want to write the script to disk
+		HasError      bool   // If the testcase is expected to have error
+	}{
+		{
+			ScriptPath:    "/var/tmp/workingTestScript.sh",
+			ScriptContent: workingTestScript,
+			WriteScript:   true,
+			HasError:      false,
+		},
+		{
+			ScriptPath:    "/var/tmp/failingTestScript.sh",
+			ScriptContent: failingTestScript,
+			WriteScript:   true,
+			HasError:      true,
+		},
+		{
+			ScriptPath:  "/var/tmp/phantomTestScript.sh",
+			WriteScript: false,
+			HasError:    true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		if testCase.WriteScript {
+			err := ioutil.WriteFile(testCase.ScriptPath, []byte(testCase.ScriptContent), 0755)
+			if err != nil {
+				t.Errorf("the was an error when creating the script testing file - %s", err)
+			}
+			defer os.Remove(testCase.ScriptPath) // Remove the testing script when the function returns
+		}
+
+		config := &cosmovisor.Config{
+			UnsafeSkipBackup:  false,
+			ScriptBackupShell: "/bin/sh",
+			ScriptBackupPath:  testCase.ScriptPath,
+		}
+
+		err := cosmovisor.DoBackup(config)
+		if err != nil && !testCase.HasError {
+			t.Errorf("Expected no error but got one - %s", err)
+		}
+		if err == nil && testCase.HasError {
+			t.Errorf("expected error but got no one")
+		}
+	}
 }
